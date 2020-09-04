@@ -2,6 +2,9 @@ import numpy as np
 import time
 from itertools import groupby
 from exp import *
+from utils import *
+from io_parser import IOParser
+from input_parser import InputParser
 
 
 class PropKB(object):
@@ -9,6 +12,10 @@ class PropKB(object):
 
     def __init__(self):
         self.clauses = []
+
+    def tell_batch(self, batch):
+        for item in batch:
+            self.tell(item)
 
     def tell(self, sentence):
         self.clauses.append([ExprItem(item) for item in sentence])
@@ -18,16 +25,18 @@ class PropKB(object):
 
 
 def pl_resolution(KB: PropKB, alpha):
+    rslt_data_epoch = []
     clauses = KB.clauses
-    clauses.append([~ExprItem(alpha)])
+    alpha_query = [~ExprItem(item) for item in alpha]
+    clauses.append(alpha_query)
     new = []
+    epoch_arr = []
     while True:
+        epoch_arr = []
         n = len(clauses)
-        # print("Num clauses", n)
 
         pairs = [(clauses[i], clauses[j])
                  for i in range(n) for j in range(i+1, n)]
-        # print("Num pairs ", len(pairs))
 
         pairs_count = 0
         for (ci, cj) in pairs:
@@ -41,10 +50,12 @@ def pl_resolution(KB: PropKB, alpha):
                 for c in new:
                     if c not in clauses:
                         clauses.append(c)
+                        epoch_arr.append(c)
                         print(c)
                         counter += 1
                 print("-------- ADDED {0} -----------".format(counter))
-                return True
+                rslt_data_epoch.append(epoch_arr)
+                return (True, rslt_data_epoch)
 
         for item in new:
             item.sort()
@@ -52,57 +63,19 @@ def pl_resolution(KB: PropKB, alpha):
         if issubset(new, clauses):
             print(
                 "-------- ADDED {0} -----------".format(0))
-            return False
+            rslt_data_epoch.append([])
+            return (False, rslt_data_epoch)
 
         # print('new:', len(new))
         counter = 0
         for c in new:
             if c not in clauses:
                 clauses.append(c)
+                epoch_arr.append(c)
                 print(c)
                 counter += 1
         print("-------- ADDED {0} -----------".format(counter))
-
-
-def issubset(this, other):
-    for e in this:
-        if e not in other:
-            return False
-    return True
-
-
-def removeall(item, seq):
-    """Return a copy of seq (or string) with all occurences of item removed.
-    >>> removeall(3, [1, 2, 3, 3, 2, 1, 3])
-    [1, 2, 2, 1]
-    >>> removeall(4, [1, 2, 3])
-    [1, 2, 3]
-    """
-    if isinstance(seq, str):
-        return seq.replace(item, '')
-    else:
-        return [x for x in seq if x != item]
-
-
-def union(this, other):
-    return type(this)(list(this) + list(other))
-
-
-def unique(seq):
-    """Remove duplicate elements from seq. Assumes hashable elements.
-    >>> unique([1, 2, 3, 2, 1])
-    [1, 2, 3]
-    """
-    return list(set(seq))
-
-
-def check_complementary(dnew):
-    pairs = [(dnew[i], dnew[j]) for i in range(len(dnew))
-             for j in range(i+1, len(dnew))]
-    for (ci, cj) in pairs:
-        if ci == ~cj:
-            return False
-    return True
+        rslt_data_epoch.append(epoch_arr)
 
 
 def pl_resolve(ci, cj):
@@ -127,15 +100,45 @@ def pl_resolve(ci, cj):
     return clauses
 
 
-if __name__ == "__main__":
-    print("Stasrt")
+def output_result(path, rslt, list_clause):
+    with open(path, 'w') as fs:
+        for epoch in list_clause:
+            fs.write("{}\n".format(len(epoch)))
+            for clause in epoch:
+                if clause == "{}":
+                    fs.write("{}\n")
+                else:
+                    clause.sort()
+                    if len(clause) > 1:
+                        fs.write("{}\n".format(
+                            ' OR '.join(str(e) for e in clause)
+                        ))
+                    else:
+                        fs.write("{}\n".format(clause[0]))
+        if rslt == True:
+            fs.write("YES")
+        else:
+            fs.write("NO")
 
+
+def run_test(case):
     kb = PropKB()
-    kb.tell(['-A', 'B'])
-    kb.tell(['B', '-C'])
-    kb.tell(['A', '-B', 'C'])
-    kb.tell(['-B'])
+    p = IOParser()
+    input_data: InputParser = p.load_input("input/{}.txt".format(case))
+    kb.tell_batch(input_data.input_clauses)
 
-    reslt = pl_resolution(kb, 'A')
+    #kb.tell(['-A', 'B'])
+    #kb.tell(['B', '-C'])
+    #kb.tell(['A', '-B', 'C'])
+    # kb.tell(['-B'])
+    reslt, list_clause = pl_resolution(kb, input_data.query_alpha)
+    output_result("output/{}.txt".format(case), reslt, list_clause)
     print('YES' if reslt else 'NO')
+
+
+if __name__ == "__main__":
+    print("Start")
+    test_case = ["5"]
+    for item in test_case:
+        run_test(item)
     print("End")

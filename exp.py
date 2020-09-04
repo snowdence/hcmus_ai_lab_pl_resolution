@@ -28,7 +28,7 @@ class ExprItem:
         return (self.label_variable < other.label_variable)
 
     def __str__(self):
-        return self.op + self.label_variable
+        return (self.op if self.op != '+' else '') + self.label_variable
 
     def __repr__(self):
         return self.op + self.label_variable
